@@ -1,0 +1,35 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Test
+    # net8.0-windows + UseWindowsForms: this cannot build on the Linux
+    # self-hosted runner. windows-latest is GitHub-hosted and free for public
+    # repos, and matches how bc-docker-manager already builds its Windows target.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      # The solution is named explicitly on every step: the repo root holds both
+      # a .sln and a .csproj, so a bare `dotnet <verb>` fails with MSB1011
+      # ("more than one project or solution file").
+      - name: Restore
+        run: dotnet restore WifiSurvey.sln
+
+      - name: Build
+        run: dotnet build WifiSurvey.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test WifiSurvey.sln --configuration Release --no-build --verbosity normal
