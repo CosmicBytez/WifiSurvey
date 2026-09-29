@@ -1,0 +1,77 @@
+name: Release
+
+# Push a tag like v1.2.0 to publish a GitHub release with a self-contained
+# win-x64 build. Pull requests that touch this file run the same build as a
+# dry run (artifact only, no release) so the pipeline is proven before a tag.
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ '.github/workflows/release.yml' ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    # Same reasoning as build-test.yml: WinForms needs Windows, and hosted
+    # runners are free for public repos (the self-hosted pool must never serve
+    # public-repo PRs).
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dryrun.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        run: dotnet test WifiSurvey.sln --configuration Release
+
+      # Publish the app project only: the .sln also contains the test project.
+      # Single-file/self-contained/ReadyToRun settings come from the csproj.
+      - name: Publish
+        run: dotnet publish WifiSurvey.csproj --configuration Release --output publish -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Package
+        id: pkg
+        shell: pwsh
+        run: |
+          $zip = "WifiSurvey-${{ steps.ver.outputs.version }}-win-x64.zip"
+          Copy-Item README.md, LICENSE publish/
+          Compress-Archive -Path publish/* -DestinationPath $zip
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  $zip" | Out-File -Encoding ascii "$zip.sha256"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: WifiSurvey-win-x64
+          path: |
+            ${{ steps.pkg.outputs.zip }}
+            ${{ steps.pkg.outputs.zip }}.sha256
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "${{ steps.pkg.outputs.zip }}" "${{ steps.pkg.outputs.zip }}.sha256" \
+            --title "WifiSurvey $GITHUB_REF_NAME" --generate-notes
