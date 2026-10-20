@@ -249,14 +249,6 @@ public partial class MainForm : Form
 
         _liveMonitorTab.Controls.Add(splitContainer);
 
-        // Set splitter after adding to tab
-        _liveMonitorTab.Layout += (s, e) =>
-        {
-            if (splitContainer.Width > 0)
-            {
-                splitContainer.SplitterDistance = Math.Max(200, splitContainer.Width - 400);
-            }
-        };
     }
 
     private void CreateConnectionDetailsPanel()
@@ -612,16 +604,6 @@ public partial class MainForm : Form
 
         _siteSurveyTab.Controls.Add(_surveySplitContainer);
 
-        // Set splitter after tab is shown
-        _siteSurveyTab.Layout += (s, e) =>
-        {
-            if (_surveySplitContainer.Width > 0)
-            {
-                _surveySplitContainer.Panel1MinSize = 200;
-                _surveySplitContainer.Panel2MinSize = 200;
-                _surveySplitContainer.SplitterDistance = Math.Max(200, _surveySplitContainer.Width - 300);
-            }
-        };
     }
 
     private void CreateSidePanel()
